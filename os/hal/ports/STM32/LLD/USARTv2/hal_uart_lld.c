@@ -30,6 +30,11 @@
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
 
+/* Workaround for not implemented LIN detection in STM32F070xB */
+#if !defined(USART_ISR_LBD)
+#define  USART_ISR_LBD                      ((uint32_t)0x00000100U)            /*!< Dummy LIN Break Detection Flag, read only! */
+#endif
+
 /* STM32L0xx/STM32F7xx ST headers difference.*/
 #if !defined(USART_ISR_LBDF)
 #define USART_ISR_LBDF USART_ISR_LBD
@@ -181,7 +186,7 @@ static uartflags_t translate_errors(uint32_t isr) {
  */
 static void uart_enter_rx_idle_loop(UARTDriver *uartp) {
   uint32_t mode;
-  
+
   /* RX DMA channel preparation, if the char callback is defined then the
      TCIE interrupt is enabled too.*/
   if (uartp->config->rxchar_cb == NULL)
@@ -205,7 +210,7 @@ static void usart_stop(UARTDriver *uartp) {
   /* Stops RX and TX DMA channels.*/
   dmaStreamDisable(uartp->dmarx);
   dmaStreamDisable(uartp->dmatx);
-  
+
   /* Stops USART operations.*/
   uartp->usart->CR1 = 0;
   uartp->usart->CR2 = 0;
@@ -234,7 +239,9 @@ static void usart_start(UARTDriver *uartp) {
 
   /* Note that some bits are enforced because required for correct driver
      operations.*/
+#if defined(USART_CR2_LBDIE)
   u->CR2 = uartp->config->cr2 | USART_CR2_LBDIE;
+#endif
   u->CR3 = uartp->config->cr3 | USART_CR3_DMAT | USART_CR3_DMAR |
                                 USART_CR3_EIE;
 
@@ -316,7 +323,7 @@ static void serve_usart_irq(UARTDriver *uartp) {
   uint32_t isr;
   USART_TypeDef *u = uartp->usart;
   uint32_t cr1 = u->CR1;
-  
+
   /* Reading and clearing status.*/
   isr = u->ISR;
   u->ICR = isr;
